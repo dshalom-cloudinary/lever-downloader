@@ -9,6 +9,7 @@ so that any frontend (CLI, GUI, web) can display live status.
 import re
 import time
 import threading
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -107,6 +108,7 @@ class ResumeDownloader:
                 downloaded = 0
                 skipped = 0
                 errors = 0
+                results_log = []  # (name, url, result) for the report
 
                 for idx, (name, url) in enumerate(candidates, 1):
                     if self._stopped():
@@ -115,6 +117,7 @@ class ResumeDownloader:
 
                     self._emit({"type": "candidate_start", "index": idx, "total": total, "name": name})
                     result = self._download_resume(page, name, url)
+                    results_log.append((name, url, result))
                     self._emit({"type": "candidate_done", "index": idx, "total": total, "name": name, "result": result})
 
                     if result == "downloaded":
@@ -128,6 +131,9 @@ class ResumeDownloader:
 
                 self._emit({"type": "complete", "downloaded": downloaded, "skipped": skipped, "errors": errors})
 
+                # Step 4 – Write results report
+                self._write_report(total, downloaded, skipped, errors, results_log)
+
             except Exception as exc:
                 self._emit({"type": "error", "message": str(exc)})
             finally:
@@ -138,6 +144,47 @@ class ResumeDownloader:
         self._stop_event.set()
 
     # ── Internal helpers ─────────────────────────────────────────
+
+    def _write_report(self, total, downloaded, skipped, errors, results_log):
+        """Write a results.txt summary file to the download folder."""
+        report_path = self.download_dir / "results.txt"
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        lines = [
+            "=" * 60,
+            "  Lever Resume Download Report",
+            "=" * 60,
+            f"  Date:              {now}",
+            f"  Source URL:         {self.lever_url}",
+            f"  Download folder:   {self.download_dir}",
+            "",
+            "-" * 60,
+            "  Summary",
+            "-" * 60,
+            f"  Total candidates:  {total}",
+            f"  Downloaded:        {downloaded}",
+            f"  Skipped (no file): {skipped}",
+            f"  Errors:            {errors}",
+            "",
+            "-" * 60,
+            "  Per-Candidate Details",
+            "-" * 60,
+        ]
+
+        for i, (name, url, result) in enumerate(results_log, 1):
+            status_icon = "OK" if result == "downloaded" else "SKIP" if "no_" in result else "ERR"
+            lines.append(f"  [{status_icon:4s}] {i:3d}. {name}")
+            lines.append(f"         URL:    {url}")
+            lines.append(f"         Result: {result}")
+            if result == "downloaded":
+                safe_name = sanitize_filename(name)
+                lines.append(f"         File:   {safe_name}_Resume.pdf")
+            lines.append("")
+
+        lines.append("=" * 60)
+
+        report_path.write_text("\n".join(lines), encoding="utf-8")
+        self._emit({"type": "status", "message": f"Report saved to {report_path}"})
 
     def _emit(self, event: dict):
         self._on_progress(event)
