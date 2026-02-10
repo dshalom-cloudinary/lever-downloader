@@ -20,7 +20,10 @@ def find_chromium_path() -> Path:
     """Return the path to the Playwright Chromium installation."""
     try:
         from playwright._impl._driver import compute_driver_executable
-        driver_dir = Path(compute_driver_executable()).parent
+        result = compute_driver_executable()
+        # compute_driver_executable may return a tuple (node_path, cli_js) or a string
+        driver_exec = result[0] if isinstance(result, (tuple, list)) else result
+        driver_dir = Path(driver_exec).parent
     except ImportError:
         # Fallback: common locations
         driver_dir = None
@@ -35,10 +38,12 @@ def find_chromium_path() -> Path:
     for root in search_roots:
         if not root.exists():
             continue
-        # Find the chromium-* directory
-        for child in sorted(root.iterdir(), reverse=True):
-            if child.is_dir() and "chromium" in child.name.lower():
-                return child
+        # Prefer full chromium over headless_shell
+        candidates = [c for c in root.iterdir() if c.is_dir() and "chromium" in c.name.lower()]
+        # Sort so that "chromium-XXXX" (without "headless") comes before "chromium_headless_shell-XXXX"
+        candidates.sort(key=lambda p: ("headless" in p.name.lower(), p.name), reverse=False)
+        if candidates:
+            return candidates[0]
 
     print("ERROR: Could not locate Playwright Chromium installation.")
     print("       Run `playwright install chromium` first.")
@@ -46,28 +51,26 @@ def find_chromium_path() -> Path:
 
 
 def build():
-    chromium_path = find_chromium_path()
-    print(f"Chromium found at: {chromium_path}")
-
     app_name = "Lever Resume Downloader"
     entry_point = "app/gui.py"
 
     # Determine platform-specific args
     is_mac = platform.system() == "Darwin"
 
+    # NOTE: Chromium is NOT bundled.  The app auto-installs it on first launch
+    # via _ensure_chromium_installed() in core.py.  This avoids macOS code-
+    # signing issues with nested .app bundles and keeps the download small.
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--name", app_name,
         "--noconfirm",
         "--windowed" if is_mac else "--console",
-        # Bundle Chromium
-        "--add-data", f"{chromium_path}:playwright_chromium",
         # Hidden imports that PyInstaller misses
         "--hidden-import", "playwright",
         "--hidden-import", "playwright.sync_api",
         "--hidden-import", "greenlet",
         "--hidden-import", "pyee",
-        # Collect Playwright's driver
+        # Collect Playwright's driver (includes node binary + CLI)
         "--collect-all", "playwright",
         # Entry point
         entry_point,

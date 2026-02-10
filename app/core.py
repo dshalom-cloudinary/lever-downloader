@@ -6,7 +6,9 @@ and download candidate resumes.  Communicates progress via a callback
 so that any frontend (CLI, GUI, web) can display live status.
 """
 
+import os
 import re
+import sys
 import time
 import threading
 from datetime import datetime
@@ -14,6 +16,50 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from playwright.sync_api import sync_playwright, TimeoutError as PwTimeout
+
+
+def _ensure_chromium_installed(on_status=None):
+    """Ensure Playwright Chromium is installed. If running inside a
+    PyInstaller bundle, use a local browser cache dir so that Chromium
+    is downloaded once and reused across launches."""
+    import subprocess
+
+    # When bundled, use a fixed cache inside ~/Library/Caches (or ~/.cache)
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        cache_dir = os.path.join(str(Path.home()), "Library", "Caches", "lever-downloader-browsers")
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = cache_dir
+
+    # Check if chromium is already installed
+    try:
+        from playwright.sync_api import sync_playwright as _sp
+        with _sp() as pw:
+            pw.chromium.executable_path  # noqa – just test availability
+        return  # already installed
+    except Exception:
+        pass
+
+    if on_status:
+        on_status("Chromium not found – installing (one-time, ~150 MB) ...")
+
+    # Run playwright install chromium
+    node_or_driver = None
+    try:
+        from playwright._impl._driver import compute_driver_executable
+        result = compute_driver_executable()
+        node_or_driver = result[0] if isinstance(result, (tuple, list)) else result
+    except Exception:
+        pass
+
+    if node_or_driver and bundle_dir:
+        # Inside bundle – call the playwright CLI via its driver
+        cli_js = result[1] if isinstance(result, (tuple, list)) else None
+        if cli_js:
+            subprocess.run([node_or_driver, cli_js, "install", "chromium"], check=True)
+            return
+
+    # Fallback: use python -m playwright install chromium
+    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
 
 # ── Defaults ─────────────────────────────────────────────────────
 DEFAULT_LEVER_URL = (
@@ -80,6 +126,9 @@ class ResumeDownloader:
 
     def run(self):
         """Execute the full download flow (blocking)."""
+        _ensure_chromium_installed(
+            on_status=lambda msg: self._emit({"type": "status", "message": msg})
+        )
         self._stop_event.clear()
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self._emit({"type": "status", "message": "Launching browser ..."})
