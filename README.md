@@ -11,13 +11,13 @@ It opens a browser window for you to log in, then automatically visits each cand
 The fastest way to get started. Open **Terminal** (press `Cmd + Space`, type "Terminal", hit Enter) and paste this single command:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/dshalom-cloudinary/lever-downloader/desktop/install-and-run.sh | bash
+git clone -b desktop https://github.com/dshalom-cloudinary/lever-downloader.git ~/.lever-downloader 2>/dev/null; ~/.lever-downloader/install-and-run.sh
 ```
 
 **What it does (automatically):**
 
-1. Checks that Python 3 is installed (macOS includes it)
-2. Downloads the tool to `~/.lever-downloader/`
+1. Downloads the tool to `~/.lever-downloader/` (or updates it if already there)
+2. Checks that Python 3 is installed (macOS includes it)
 3. Sets up an isolated environment (nothing installed globally)
 4. Installs the Chromium browser (~150 MB, one-time only)
 5. Launches the downloader — prompts you for the Lever URL and download folder
