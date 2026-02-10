@@ -9,6 +9,7 @@ Usage:
     python run.py
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -22,6 +23,16 @@ YELLOW = "\033[33m"
 RED   = "\033[31m"
 CYAN  = "\033[36m"
 RESET = "\033[0m"
+
+# ── Ensure stdin reads from the real terminal ─────────────────────
+# When this script is launched via  curl ... | bash  the shell's
+# stdin is the pipe, not the keyboard.  Re-open /dev/tty so that
+# input() can prompt the user interactively.
+if not sys.stdin.isatty():
+    try:
+        sys.stdin = open("/dev/tty", "r")
+    except OSError:
+        pass  # not on a Unix system or no tty available
 
 
 def _print_banner():
