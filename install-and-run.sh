@@ -3,9 +3,9 @@
 #  Lever Resume Downloader – One-step install & run
 # ──────────────────────────────────────────────────────────────────
 #  Usage (one-liner, paste into Terminal):
-#    git clone -b desktop https://github.com/dshalom-cloudinary/lever-downloader.git ~/.lever-downloader 2>/dev/null; ~/.lever-downloader/install-and-run.sh
+#    curl -sL https://raw.githubusercontent.com/dshalom-cloudinary/lever-downloader/desktop/install-and-run.sh | bash
 #
-#  Or if already cloned:
+#  Or if already installed:
 #    ~/.lever-downloader/install-and-run.sh
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
