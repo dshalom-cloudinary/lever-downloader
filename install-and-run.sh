@@ -96,4 +96,6 @@ info "Chromium is ready"
 step "Launching Lever Resume Downloader ..."
 echo ""
 
-python run.py
+# Redirect stdin from /dev/tty so that input() works even when
+# this script is piped via  curl ... | bash
+python run.py < /dev/tty
